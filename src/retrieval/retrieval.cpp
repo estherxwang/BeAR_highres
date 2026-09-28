@@ -208,6 +208,15 @@ Retrieval::Retrieval(
 
         std::cout << "  Alpha is a free retrieval parameter\n";
       }
+
+      // Re-injection restores the absolute line amplitude only through a free
+      // alpha; with alpha at its maximum-likelihood value the amplitude drops out.
+      if (!use_free_alpha)
+        for (const auto& obs : highres_observations)
+          if (obs.reinjectModel())
+            std::cout << "  WARNING: " << obs.observationName()
+                      << " uses #reinject_model 1 without an alpha prior; the"
+                      << " absolute line amplitude is not constrained\n";
     }
 
     priors.initFromMap(prior_map, ordered_names);
