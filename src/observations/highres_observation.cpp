@@ -271,6 +271,66 @@ void HighResObservation::initFiltering()
 
 // Precompute data-only weighted sums for Gibson Eq. 4 likelihood.
 // Uses filtered flux when filtering is active, but always original uncertainties.
+// Diagnostic export. Runs only the interpolate+filter stage of the filtered
+// likelihood path, so the result is the model exactly as the likelihood builds
+// it -- including the CHIMERA re-injection scaling when the observation was
+// loaded with #reinject_model 1. No likelihood is evaluated. The only state
+// touched is model_filtered_dev, which is scratch workspace overwritten at the
+// start of every likelihood call anyway.
+double HighResObservation::kpRef() const { return kp_ref; }
+double HighResObservation::vsysRef() const { return vsys_ref; }
+
+
+std::vector<float> HighResObservation::modelMatrixGPU(
+  const float* broadened_spectrum_gpu,
+  const double* model_wavelengths_gpu,
+  size_t nb_model_points,
+  double Kp, double Vsys, double dphi,
+  bool apply_projection,
+  const float* stellar_spectrum_gpu) const
+{
+  // Same convention as computeLogLikelihoodGPU: the kernels receive total
+  // velocities, not the retrieved offsets.
+  Kp   += kp_ref;
+  Vsys += vsys_ref;
+
+  const float* exposure_blur_coeff_arg =
+    exposure_blurring ? exposure_blur_coeff_dev : nullptr;
+
+  launchHighResInterpFilterOnly(
+    broadened_spectrum_gpu,
+    model_wavelengths_gpu,
+    static_cast<int>(nb_model_points),
+    all_wavelengths_dev,
+    order_offsets_dev,
+    order_nb_pixels_dev,
+    orbital_phases_dev,
+    barycentric_velocities_dev,
+    exposure_blur_coeff_arg,
+    projection_matrices_dev,
+    model_filtered_dev,
+    static_cast<int>(nb_orders),
+    static_cast<int>(nb_exposures),
+    max_pixels_per_order,
+    static_cast<float>(Kp),
+    static_cast<float>(Vsys),
+    static_cast<float>(dphi),
+    has_model_scale ? model_scale_dev : nullptr,
+    apply_projection,
+    use_phase_function,
+    stellar_spectrum_gpu);
+
+  std::vector<float> host(total_pixels * nb_exposures, 0.0f);
+
+  //moveToHost takes T*& , which a const method cannot bind to directly;
+  //the pointer itself is not modified.
+  float* device_ptr = model_filtered_dev;
+  moveToHost(device_ptr, host);
+
+  return host;
+}
+
+
 void HighResObservation::precomputeGibsonStatistics()
 {
   const size_t ne = nb_exposures;
@@ -766,6 +826,24 @@ double HighResObservation::computeLogLikelihood(
             model_matrix[exp][p] *= fs_dop / fs_rest;
         }
       }
+    }
+
+    // Re-injection: multiply by the per-pixel, per-exposure scale factor
+    // before filtering, matching the GPU path (CHIMERA-style, Line et al.
+    // 2021). model_scale = P*raw_flux embeds the model in the systematics
+    // matrix so it lands in the same subspace as the PCA-cleaned data.
+    // Without this the CPU and GPU likelihoods differ by ~170 nats on any
+    // observation loaded with #reinject_model 1.
+    if (has_model_scale)
+    {
+      size_t pixel_offset = 0;
+      for (size_t o = 0; o < ord; ++o)
+        pixel_offset += spectral_orders[o].nb_pixels;
+
+      for (size_t exp = 0; exp < nb_exposures; ++exp)
+        for (size_t p = 0; p < N; ++p)
+          model_matrix[exp][p] *= static_cast<double>(
+            model_scale_host[pixel_offset * nb_exposures + exp * N + p]);
     }
 
     // 2) Apply model temporal filtering:

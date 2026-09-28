@@ -71,6 +71,28 @@ class HighResObservation {
     bool hasFiltering() const { return has_filtering; }
     bool hasFluxUncertainties() const { return has_flux_uncertainties; }
 
+    // Diagnostic export (not part of any likelihood). The interpolated model
+    // for every order and exposure, either before or after the (I-P) temporal
+    // filter, computed with the same GPU kernel the likelihood uses.
+    // Layout matches the flux buffer: [order_offset*nb_exp + exp*N + pixel].
+    std::vector<float> modelMatrixGPU(
+      const float* broadened_spectrum_gpu,
+      const double* model_wavelengths_gpu,
+      size_t nb_model_points,
+      double Kp, double Vsys, double dphi,
+      bool apply_projection,
+      const float* stellar_spectrum_gpu = nullptr) const;
+
+    size_t totalPixels() const { return total_pixels; }
+    double kpRef() const;
+    double vsysRef() const;
+    bool filterModel() const { return filter_model; }
+    bool reinjectModel() const { return reinject_model; }
+
+    // (I-P)-filtered observed data, [order][exposure][pixel]
+    const std::vector<std::vector<std::vector<double>>>& filteredFlux() const {
+      return filtered_flux; }
+
     void precomputeGibsonStatistics();
 
     // Likelihood mode: marginalized_alpha (default), free_alpha, or gibson

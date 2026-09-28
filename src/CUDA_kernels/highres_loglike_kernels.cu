@@ -1073,6 +1073,58 @@ void launchHighResLogLikeFiltered(
 // Unfiltered Gibson kernel: one block per (order, exposure).
 // Single pass: interpolate model, accumulate weighted sums Sm, Sfm, Smm.
 // Thread 0: combine with precomputed S1, Sf, Sff → chi2 → log-likelihood.
+__host__
+void launchHighResInterpFilterOnly(
+    const float* broadened_spectrum_dev,
+    const double* model_wavelengths_dev,
+    int n_model,
+    const double* order_wavelengths_dev,
+    const int* order_offsets_dev,
+    const int* order_nb_pixels_dev,
+    const float* orbital_phases_dev,
+    const float* v_bary_dev,
+    const float* exposure_blur_coeff_dev,
+    const float* projection_matrices_dev,
+    float* model_filtered_dev,
+    int nb_orders,
+    int nb_exposures,
+    int max_pixels_per_order,
+    float Kp, float Vsys, float dphi,
+    const float* model_scale_dev,
+    bool apply_model_projection,
+    bool use_phase_function,
+    const float* stellar_spectrum_dev)
+{
+  // Exactly kernel 1 of launchHighResLogLikeFiltered, with no likelihood stage.
+  const int threads = 256;
+  const dim3 blocks(nb_orders, (max_pixels_per_order + threads - 1) / threads);
+  const size_t shared_mem = 2 * nb_exposures * sizeof(double)
+    + (nb_exposures * nb_exposures + nb_exposures) * sizeof(float);
+
+  highResInterpFilterKernel<<<blocks, threads, shared_mem>>>(
+    broadened_spectrum_dev,
+    model_wavelengths_dev,
+    n_model,
+    order_wavelengths_dev,
+    order_offsets_dev,
+    order_nb_pixels_dev,
+    orbital_phases_dev,
+    v_bary_dev,
+    exposure_blur_coeff_dev,
+    projection_matrices_dev,
+    model_filtered_dev,
+    nb_orders,
+    nb_exposures,
+    Kp, Vsys, dphi,
+    model_scale_dev,
+    apply_model_projection,
+    use_phase_function,
+    stellar_spectrum_dev);
+
+  CUDA_CHECK_AFTER_KERNEL();
+}
+
+
 __global__
 void highResLogLikeGibsonKernel(
   const float*  __restrict__ broadened_spectrum,

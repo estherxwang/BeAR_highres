@@ -98,6 +98,34 @@ void launchHighResLogLikeFiltered(
     const float* stellar_spectrum_dev = nullptr);
 
 
+// Diagnostic export (not used by any likelihood): run ONLY the interpolate +
+// filter stage of the filtered path and leave the result in model_filtered_dev.
+// With apply_model_projection = true this is exactly the model the likelihood
+// sees after (I-P); with false it is the same model before filtering, so the
+// pair shows what the temporal filter removes. No likelihood is evaluated and
+// no observation state is written, so this cannot perturb a retrieval.
+void launchHighResInterpFilterOnly(
+    const float* broadened_spectrum_dev,
+    const double* model_wavelengths_dev,
+    int n_model,
+    const double* order_wavelengths_dev,
+    const int* order_offsets_dev,
+    const int* order_nb_pixels_dev,
+    const float* orbital_phases_dev,
+    const float* v_bary_dev,
+    const float* exposure_blur_coeff_dev,
+    const float* projection_matrices_dev,
+    float* model_filtered_dev,
+    int nb_orders,
+    int nb_exposures,
+    int max_pixels_per_order,
+    float Kp, float Vsys, float dphi,
+    const float* model_scale_dev = nullptr,
+    bool apply_model_projection = true,
+    bool use_phase_function = false,
+    const float* stellar_spectrum_dev = nullptr);
+
+
 // Gibson et al. 2022 Eq. 4: per-pixel uncertainty weighting, beta marginalized.
 // Unfiltered variant: single kernel, one block per (order, exposure).
 void launchHighResLogLikeGibson(
