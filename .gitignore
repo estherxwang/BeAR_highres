@@ -24,6 +24,7 @@ SecondaryEclipseTest/*
 WASP-121b_test/*
 WASP-121b_em_test/*
 
+python/lib/pybear.cpython*
 python/lib/bear.cpython*
 python/lib/__pycache__/*
 python/__pycache__/*
@@ -38,3 +39,9 @@ WASP-77Ab_comb/*
 WASP-121b_em_test/*
 WASP-121b_JWST/*
 WASP-121b_comb/*
+WASP-77Ab_comb/*
+WASP-77Ab_JWST/*
+WASP-77Ab_em_test/*
+WASP-121b_comb/*
+WASP-121b_em_test/*
+WASP-121b_JWST/*
